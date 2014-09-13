@@ -21,6 +21,7 @@ import socket
 import sys
 
 import tlslite
+from tlslite.messages import EllipticCurvesExtension
 
 import csv_cipher_parser
 ciphersuites = csv_cipher_parser.get_ciphers()
@@ -51,10 +52,18 @@ def open_socket(host, port=443):
 
 
 def get_preferred(suites, hostname, port=443, tlsversion=(3, 1)):
+
+    all_curves = csv_cipher_parser.get_curves().keys()
+    elliptic_curves_extension = EllipticCurvesExtension().create(
+        elliptic_curves=all_curves)
+
     client_hello = tlslite.messages.ClientHello()
     random = bytearray("A"*32)
     session = ""
-    client_hello.create(tlsversion, random, session, suites)
+    # FIXME: For ECC ciphers, the list of supported curves needs to be added as
+    # extension: http://tools.ietf.org/html/rfc4492#section-5.1
+    client_hello.create(tlsversion, random, session, suites,
+                        extensions=[elliptic_curves_extension])
 
     s = open_socket(hostname, port)
     client_hello_data = client_hello.write()

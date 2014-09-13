@@ -20,6 +20,27 @@ import csv
 import pprint
 
 
+def get_curves(include_all=False):
+    """
+
+    """
+    curves = {}
+
+    with open("tls-parameters-8.csv", "rb") as csvfile:
+        reader = csv.DictReader(csvfile)
+        # FIXME: Maybe include "Reserve for Private Use" range
+        for row in reader:
+            value = row["Value"]
+            if "-" in value:
+                if not include_all:
+                    continue
+                raise NotImplementedError()
+            else:
+                value = int(value)
+                curves[value] = row
+    return curves
+
+
 def get_ciphers(include_ranges=False):
     """
     Create dictionary from TLS Cipher Suite Registry
