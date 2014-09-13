@@ -50,9 +50,8 @@ def open_socket(host, port=443):
     return s
 
 
-def get_preferred(suites, hostname, port=443):
+def get_preferred(suites, hostname, port=443, tlsversion=(3, 1)):
     client_hello = tlslite.messages.ClientHello()
-    tlsversion = (3, 1)
     random = bytearray("A"*32)
     session = ""
     client_hello.create(tlsversion, random, session, suites)
@@ -101,8 +100,7 @@ def get_preferred(suites, hostname, port=443):
         raise Exception("Unexpected content type:" + hex(received_record.type))
 
 
-if __name__ == "__main__":
-    suites = set(ciphersuites.keys())
+def scanversion(tlsversion=(3, 1)):
     suites = all_ciphersuites
     preferred = []
     test_length = 0x1000
@@ -111,9 +109,10 @@ if __name__ == "__main__":
         suites = suites[test_length:]
         while selected_suites:
             try:
-                selected = get_preferred(list(selected_suites), sys.argv[1])
-            except:
-                # FIXME: log an error/warning
+                selected = get_preferred(list(selected_suites), sys.argv[1],
+                                         tlsversion=tlsversion)
+            except Exception as e:
+                logging.error("Exception: %s", e)
                 break
             if selected is not None:
                 cipher_info = ciphersuites.get(selected)
@@ -124,3 +123,9 @@ if __name__ == "__main__":
                 selected_suites.remove(selected)
             else:
                 break
+
+
+if __name__ == "__main__":
+    for version in [(3, 1), (3, 2), (3, 3)]:
+        print version
+        scanversion(version)
