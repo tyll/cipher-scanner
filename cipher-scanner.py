@@ -33,6 +33,22 @@ all_ciphersuites = range(0, 0x10000)
 VERSIONS = OrderedDict(tls1=(3, 1), tls11=(3, 2), tls12=(3, 3))
 
 
+def format_cipherinfo(cipherstring):
+    """
+    cipherstring: Something like TLS_DHE_RSA_WITH_AES_256_CBC_SHA
+    """
+
+    # Remove TLS_ prefix
+    cipherstring = cipherstring[len("TLS_"):]
+
+    keyexchange, other = cipherstring.split("_WITH_")
+    keyexchange = keyexchange.replace("_", "-")
+    mac = other.split("_")[-1]
+    encryption = "-".join(other.split("_")[:-1])
+
+    return keyexchange, encryption, mac
+
+
 def open_socket(host, port=443):
     s = None
     for res in socket.getaddrinfo(host, port, socket.AF_UNSPEC,
@@ -88,7 +104,7 @@ def get_preferred(suites, hostname, port=443, tlsversion=(3, 1)):
         handshake_type = parser.get(1)
         if handshake_type == tlslite.constants.HandshakeType.server_hello:
             server_hello = tlslite.messages.ServerHello().parse(parser)
-            return server_hello.cipher_suite
+            return server_hello
         else:
             raise Exception("Missing server hello: " + handshake_type)
     elif received_record.type == tlslite.constants.ContentType.alert:
@@ -122,20 +138,26 @@ def scanversion(target, tlsversion=(3, 1)):
         suites = suites[test_length:]
         while selected_suites:
             try:
-                selected = get_preferred(list(selected_suites), target,
-                                         tlsversion=tlsversion)
+                server_hello = get_preferred(list(selected_suites), target,
+                                             tlsversion=tlsversion)
             except Exception as e:
                 logging.error("Exception: %s", e)
                 break
-            if selected is not None:
-                cipher_info = ciphersuites.get(selected)
-                if not cipher_info:
-                    cipher_info = {"Description": hex(selected)}
-                print("Server selected: {0[Description]}".format(cipher_info))
-                preferred.append(selected)
-                selected_suites.remove(selected)
-            else:
+            if server_hello is None:
                 break
+            else:
+                cipher_suite = server_hello.cipher_suite
+                cipher_info = ciphersuites.get(cipher_suite)
+                if cipher_info:
+                    description = cipher_info["Description"]
+                    cipher_values = format_cipherinfo(description)
+                    cipher_info = "{0:10s} {1:20s} {2:10s}".format(
+                        *cipher_values)
+                else:
+                    cipher_info = hex(cipher_suite)
+                print("    {}".format(cipher_info))
+                preferred.append(server_hello)
+                selected_suites.remove(cipher_suite)
 
 
 if __name__ == "__main__":
