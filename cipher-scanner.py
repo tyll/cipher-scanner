@@ -16,6 +16,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 # }}}
 
+import argparse
+from collections import OrderedDict
 import logging
 import socket
 import sys
@@ -27,6 +29,8 @@ import csv_cipher_parser
 ciphersuites = csv_cipher_parser.get_ciphers()
 
 all_ciphersuites = range(0, 0x10000)
+
+VERSIONS = OrderedDict(tls1=(3, 1), tls11=(3, 2), tls12=(3, 3))
 
 
 def open_socket(host, port=443):
@@ -109,7 +113,7 @@ def get_preferred(suites, hostname, port=443, tlsversion=(3, 1)):
         raise Exception("Unexpected content type:" + hex(received_record.type))
 
 
-def scanversion(tlsversion=(3, 1)):
+def scanversion(target, tlsversion=(3, 1)):
     suites = all_ciphersuites
     preferred = []
     test_length = 0x1000
@@ -118,7 +122,7 @@ def scanversion(tlsversion=(3, 1)):
         suites = suites[test_length:]
         while selected_suites:
             try:
-                selected = get_preferred(list(selected_suites), sys.argv[1],
+                selected = get_preferred(list(selected_suites), target,
                                          tlsversion=tlsversion)
             except Exception as e:
                 logging.error("Exception: %s", e)
@@ -135,6 +139,11 @@ def scanversion(tlsversion=(3, 1)):
 
 
 if __name__ == "__main__":
-    for version in [(3, 1), (3, 2), (3, 3)]:
-        print version
-        scanversion(version)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("target", nargs="+")
+    parser.add_argument("--versions", default=",".join(VERSIONS.keys()))
+    args = parser.parse_args()
+    for target in args.target:
+        for version in args.versions.split(","):
+            print version
+            scanversion(target, VERSIONS[version])
