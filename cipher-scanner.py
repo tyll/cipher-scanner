@@ -80,8 +80,6 @@ def get_preferred(suites, hostname, port=443, tlsversion=(3, 1)):
     client_hello = tlslite.messages.ClientHello()
     random = bytearray("A"*32)
     session = ""
-    # FIXME: For ECC ciphers, the list of supported curves needs to be added as
-    # extension: http://tools.ietf.org/html/rfc4492#section-5.1
     client_hello.create(tlsversion, random, session, suites,
                         extensions=[elliptic_curves_extension])
 
