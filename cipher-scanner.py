@@ -23,7 +23,8 @@ import socket
 import sys
 
 import tlslite
-from tlslite.messages import EllipticCurvesExtension
+from tlslite.messages import EllipticCurvesExtension, \
+    SignatureAndHashAlgorithmExtension
 
 import iana_registry
 ciphersuites = iana_registry.get_ciphers()
@@ -31,6 +32,13 @@ ciphersuites = iana_registry.get_ciphers()
 all_ciphersuites = range(0, 0x10000)
 
 VERSIONS = OrderedDict(tls1=(3, 1), tls11=(3, 2), tls12=(3, 3))
+
+
+def cross_product(a, b):
+    res = []
+    for i in a:
+        res.extend([(i, j) for j in b])
+    return res
 
 
 def format_cipherinfo(cipherstring):
@@ -74,14 +82,25 @@ def open_socket(host, port=443):
 def get_preferred(suites, hostname, port=443, tlsversion=(3, 1)):
 
     all_curves = iana_registry.ECNamedCurves().get_data().keys()
+    all_hash_algorithms = iana_registry.HashAlgorithms().get_data().keys()
+    all_signature_algorithms = \
+        iana_registry.SignatureAlgorithms().get_data().keys()
+    all_hash_signatures = [a * 0xFF + b for (a, b) in cross_product(
+        all_hash_algorithms, all_signature_algorithms)]
+
     elliptic_curves_extension = EllipticCurvesExtension().create(
         elliptic_curves=all_curves)
+
+    signature_and_hash_algorithm_extension = \
+        SignatureAndHashAlgorithmExtension().create(
+            supported_signature_algorithms=all_hash_signatures)
 
     client_hello = tlslite.messages.ClientHello()
     random = bytearray("A"*32)
     session = ""
     client_hello.create(tlsversion, random, session, suites,
-                        extensions=[elliptic_curves_extension])
+                        extensions=[elliptic_curves_extension,
+                                    signature_and_hash_algorithm_extension])
 
     s = open_socket(hostname, port)
     client_hello_data = client_hello.write()
