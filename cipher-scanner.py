@@ -25,8 +25,8 @@ import sys
 import tlslite
 from tlslite.messages import EllipticCurvesExtension
 
-import csv_cipher_parser
-ciphersuites = csv_cipher_parser.get_ciphers()
+import iana_registry
+ciphersuites = iana_registry.get_ciphers()
 
 all_ciphersuites = range(0, 0x10000)
 
@@ -73,7 +73,7 @@ def open_socket(host, port=443):
 
 def get_preferred(suites, hostname, port=443, tlsversion=(3, 1)):
 
-    all_curves = csv_cipher_parser.get_curves().keys()
+    all_curves = iana_registry.ECNamedCurves().get_data().keys()
     elliptic_curves_extension = EllipticCurvesExtension().create(
         elliptic_curves=all_curves)
 

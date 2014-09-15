@@ -20,25 +20,56 @@ import csv
 import pprint
 
 
-def get_curves(include_all=False):
-    """
+import requests
 
-    """
-    curves = {}
 
-    with open("tls-parameters-8.csv", "rb") as csvfile:
+class DecimalParser(object):
+    def __init__(self, include_all=False):
+        self.url = None
+        self.include_all = include_all
+
+    def get_data(self):
+        data = {}
+        filename = self.url.split("/")[-1]
+        try:
+            csvfile = open(filename, "rb")
+        except IOError:
+            response = requests.get(self.url)
+            csvfile = response.iter_lines()
         reader = csv.DictReader(csvfile)
-        # FIXME: Maybe include "Reserve for Private Use" range
+
+        # FIXME: Maybe include "Reserved for Private Use" range
         for row in reader:
             value = row["Value"]
             if "-" in value:
-                if not include_all:
+                if not self.include_all:
                     continue
                 raise NotImplementedError()
             else:
                 value = int(value)
-                curves[value] = row
-    return curves
+                data[value] = row
+        return data
+
+
+class ECNamedCurves(DecimalParser):
+    def __init__(self, *args):
+        super(ECNamedCurves, self).__init__(*args)
+        self.url = "http://www.iana.org/assignments/tls-parameters/"\
+            "tls-parameters-8.csv"
+
+
+class HashAlgorithms(DecimalParser):
+    def __init__(self, *args):
+        super(HashAlgorithms, self).__init__(*args)
+        self.url = "http://www.iana.org/assignments/tls-parameters/"\
+            "tls-parameters-18.csv"
+
+
+class SignatureAlgorithms(DecimalParser):
+    def __init__(self, *args):
+        super(SignatureAlgorithms, self).__init__(*args)
+        self.url = "http://www.iana.org/assignments/tls-parameters/"\
+            "tls-parameters-16.csv"
 
 
 def get_ciphers(include_ranges=False):
