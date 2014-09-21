@@ -79,7 +79,7 @@ def open_socket(host, port=443):
     return s
 
 
-def get_preferred(suites, hostname, port=443, tlsversion=(3, 1)):
+def get_preferred(suites, hostname, port=443, tlsversion=(3, 1), sni=True):
 
     all_curves = iana_registry.ECNamedCurves().get_data().keys()
     all_hash_algorithms = iana_registry.HashAlgorithms().get_data().keys()
@@ -98,9 +98,14 @@ def get_preferred(suites, hostname, port=443, tlsversion=(3, 1)):
     client_hello = tlslite.messages.ClientHello()
     random = bytearray("A"*32)
     session = ""
+    client_hello_kwargs = dict(extensions=[
+                               elliptic_curves_extension,
+                               signature_and_hash_algorithm_extension
+                               ])
+    if sni:
+        client_hello_kwargs["serverName"] = hostname
     client_hello.create(tlsversion, random, session, suites,
-                        extensions=[elliptic_curves_extension,
-                                    signature_and_hash_algorithm_extension])
+                        **client_hello_kwargs)
 
     s = open_socket(hostname, port)
     client_hello_data = client_hello.write()
@@ -146,7 +151,7 @@ def get_preferred(suites, hostname, port=443, tlsversion=(3, 1)):
         raise Exception("Unexpected content type:" + hex(received_record.type))
 
 
-def scanversion(target, tlsversion=(3, 1)):
+def scanversion(target, tlsversion=(3, 1), sni=True):
     suites = all_ciphersuites
     preferred = []
     test_length = 0x1000
@@ -157,7 +162,7 @@ def scanversion(target, tlsversion=(3, 1)):
         while selected_suites:
             try:
                 server_hello = get_preferred(list(selected_suites), target,
-                                             tlsversion=tlsversion)
+                                             tlsversion=tlsversion, sni=sni)
             except Exception as e:
                 logging.error("Exception: %s", e)
                 break
@@ -189,8 +194,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("target", nargs="+")
     parser.add_argument("--versions", default=",".join(VERSIONS.keys()))
+    parser.add_argument("--no-sni", default=True, action="store_false",
+                        help="Do not use SNI", dest="sni")
     args = parser.parse_args()
     for target in args.target:
         for version in args.versions.split(","):
             print version
-            scanversion(target, VERSIONS[version])
+            scanversion(target, VERSIONS[version], sni=args.sni)
