@@ -150,6 +150,7 @@ def scanversion(target, tlsversion=(3, 1)):
     suites = all_ciphersuites
     preferred = []
     test_length = 0x1000
+    server_version = None
     while suites:
         selected_suites = set(suites[:test_length])
         suites = suites[test_length:]
@@ -165,6 +166,13 @@ def scanversion(target, tlsversion=(3, 1)):
             else:
                 cipher_suite = server_hello.cipher_suite
                 cipher_info = ciphersuites.get(cipher_suite)
+                if server_version is None:
+                    server_version = server_hello.server_version
+                    if server_version != tlsversion:
+                        for version, raw_version in VERSIONS.items():
+                            if raw_version == server_version:
+                                print "Server version: " + version
+
                 if cipher_info:
                     description = cipher_info["Description"]
                     cipher_values = format_cipherinfo(description)
