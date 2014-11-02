@@ -18,8 +18,10 @@
 
 import argparse
 from collections import OrderedDict
+import datetime
 import logging
 import socket
+import struct
 import sys
 
 import tlslite
@@ -156,6 +158,7 @@ def scanversion(target, tlsversion=(3, 1), sni=True):
     preferred = []
     test_length = 0x1000
     server_version = None
+    server_time = None
     while suites:
         selected_suites = set(suites[:test_length])
         suites = suites[test_length:]
@@ -176,7 +179,12 @@ def scanversion(target, tlsversion=(3, 1), sni=True):
                     if server_version != tlsversion:
                         for version, raw_version in VERSIONS.items():
                             if raw_version == server_version:
-                                print "Server version: " + version
+                                print "Server Version: " + version
+                if server_time is None:
+                    gmt_time = struct.unpack(
+                        ">i", str(server_hello.random[0:4]))[0]
+                    server_time = datetime.datetime.utcfromtimestamp(gmt_time)
+                    print("Server Time: " + str(server_time) + " UTC")
 
                 if cipher_info:
                     description = cipher_info["Description"]
