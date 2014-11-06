@@ -20,6 +20,7 @@ import argparse
 from collections import OrderedDict
 import datetime
 import logging
+import random
 import socket
 import struct
 import sys
@@ -153,6 +154,20 @@ def get_preferred(suites, hostname, port=443, tlsversion=(3, 1), sni=True):
         raise Exception("Unexpected content type:" + hex(received_record.type))
 
 
+def cipher_txt(cipher_suite):
+    cipher_info = ciphersuites.get(cipher_suite)
+
+    if cipher_info:
+        description = cipher_info["Description"]
+        cipher_values = format_cipherinfo(description)
+        cipher_info = "{0:10s} {1:20s} {2:10s}".format(
+            *cipher_values)
+    else:
+        cipher_info = hex(cipher_suite)
+
+    return cipher_info
+
+
 def scanversion(target, tlsversion=(3, 1), sni=True):
     suites = all_ciphersuites
     preferred = []
@@ -173,7 +188,6 @@ def scanversion(target, tlsversion=(3, 1), sni=True):
                 break
             else:
                 cipher_suite = server_hello.cipher_suite
-                cipher_info = ciphersuites.get(cipher_suite)
                 if server_version is None:
                     server_version = server_hello.server_version
                     if server_version != tlsversion:
@@ -186,16 +200,69 @@ def scanversion(target, tlsversion=(3, 1), sni=True):
                     server_time = datetime.datetime.utcfromtimestamp(gmt_time)
                     print("Server Time: " + str(server_time) + " UTC")
 
-                if cipher_info:
-                    description = cipher_info["Description"]
-                    cipher_values = format_cipherinfo(description)
-                    cipher_info = "{0:10s} {1:20s} {2:10s}".format(
-                        *cipher_values)
-                else:
-                    cipher_info = hex(cipher_suite)
+                cipher_info = cipher_txt(cipher_suite)
                 print("    {}".format(cipher_info))
                 preferred.append(server_hello)
                 selected_suites.remove(cipher_suite)
+
+    def cipher_cmp_(x, y):
+        return cipher_cmp(x, y, target, tlsversion=tlsversion, sni=sni)
+
+    preferred_suites = [x.cipher_suite for x in preferred]
+    sorted_preferreda = sorted(preferred_suites, cmp=cipher_cmp_)
+    random.shuffle(preferred_suites)
+    sorted_preferredb = sorted(preferred_suites, cmp=cipher_cmp_)
+
+    if sorted_preferredb == sorted_preferreda:
+        if sorted_preferreda == preferred_suites:
+            print("sorted")
+        else:
+            print_sorted_info(sorted_preferreda)
+    else:
+        print_sorted_info(sorted_preferreda)
+        print_sorted_info(sorted_preferredb)
+
+
+def print_sorted_info(sorted_preferred):
+    print("Sorted:")
+    for cipher_suite in sorted_preferred:
+        cipher_info = cipher_txt(cipher_suite)
+        print("    {}".format(cipher_info))
+
+
+def cipher_cmp(suitea, suiteb, hostname, **kwargs):
+    def compare_once(ciphera, cipherb):
+        return get_preferred([ciphera, cipherb], hostname, **kwargs)
+
+    def write_debug(text):
+        return
+        sys.stderr.write(text)
+
+    write_debug("Comparing: {0:5d} {1:5d} ->".format(suitea, suiteb))
+
+    resa = compare_once(suitea, suiteb)
+    resb = compare_once(suiteb, suitea)
+
+    if resa.cipher_suite != resb.cipher_suite:
+        write_debug("E")
+        write_debug("\n")
+        return 0
+    elif resa.cipher_suite == suitea:
+        write_debug("A")
+        if resb.cipher_suite == suiteb:
+            write_debug("!")
+        write_debug("\n")
+        return -1
+    elif resa.cipher_suite == suiteb:
+        if resb.cipher_suite == suitea:
+            write_debug("!")
+        write_debug("B")
+        write_debug("\n")
+        return 1
+    else:
+        write_debug("X")
+        write_debug("\n")
+        raise RuntimeError("Unexpected cipher suite: " + resa.cipher_suite)
 
 
 if __name__ == "__main__":
